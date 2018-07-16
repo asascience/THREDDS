@@ -79,7 +79,7 @@ public class CatalogExt {
     int avail = in.available();
     int len = in.readInt();
     byte[] b = new byte[len];
-    int n = in.read(b);
+    int n = in.readFully(b);
     //System.out.printf(" read size = %d%n", b.length);
 
     //try {

@@ -73,7 +73,7 @@ public class DatasetExt implements Externalizable {
     int avail = in.available();
     int len = in.readInt();
     byte[] b = new byte[len];
-    int n = in.read(b);
+    int n = in.readFully(b);
 
     if (n != len)
       throw new RuntimeException("barf with read size=" + len + " in.available=" + avail);
