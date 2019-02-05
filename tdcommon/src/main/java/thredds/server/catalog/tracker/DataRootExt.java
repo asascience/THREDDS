@@ -112,12 +112,7 @@ public class DataRootExt implements Comparable<DataRootExt> {
     if (debug) System.out.printf(" %d: DataRootExt.readExternal len=%d%n", nrecordsRead++, len);
 
     byte[] b = new byte[len];
-    int n = in.read(b);
-    //System.out.printf(" read size = %d%n", b.length);
-
-    //try {
-    if (n != len)
-      throw new RuntimeException("DataRootExt.readExternal failed read size=" + len + " in.available=" + avail);
+    in.readFully(b);
 
     ConfigCatalogExtProto.DataRoot dsp = ConfigCatalogExtProto.DataRoot.parseFrom(b);
     this.path = dsp.getUrlPath();
