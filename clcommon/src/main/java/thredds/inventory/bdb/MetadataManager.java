@@ -58,12 +58,17 @@ public class MetadataManager implements StoreKeyValue {
     jvmPercent = _jvmPercent;
   }
 
+  static public synchronized void setReadOnly(boolean _readOnly) {
+    readOnly = _readOnly;
+  }
+
+
   static private synchronized void setup() throws DatabaseException {
     if (myEnv != null) return; // someone else did it
     logger.info("try to open bdb");
 
     EnvironmentConfig myEnvConfig = new EnvironmentConfig();
-    myEnvConfig.setReadOnly(false);
+    myEnvConfig.setReadOnly(readOnly);
     myEnvConfig.setAllowCreate(true);
     myEnvConfig.setSharedCache(true);
 
@@ -78,7 +83,7 @@ public class MetadataManager implements StoreKeyValue {
 
     try {
       myEnv = new Environment(dir, myEnvConfig); // LOOK may want to try multiple Environments
-      readOnly = false;
+      //readOnly = false;
 
      } catch (com.sleepycat.je.EnvironmentLockedException e) {
       // another process has it open: try read-only
