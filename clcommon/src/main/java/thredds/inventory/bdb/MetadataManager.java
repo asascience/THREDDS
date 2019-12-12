@@ -71,6 +71,8 @@ public class MetadataManager implements StoreKeyValue {
     myEnvConfig.setReadOnly(readOnly);
     myEnvConfig.setAllowCreate(true);
     myEnvConfig.setSharedCache(true);
+    //myEnvConfig.setSharedCache(false);
+    //myEnvConfig.setTransactional(true);
 
     if (maxSizeBytes > 0)
       myEnvConfig.setCacheSize(maxSizeBytes);
@@ -231,6 +233,7 @@ public class MetadataManager implements StoreKeyValue {
 
   // assumes only one open at a time; could have MetadataManagers share open databases
   private synchronized void openDatabase() {
+    if (myEnv == null) setup();
     if (database != null) return;
     DatabaseConfig dbConfig = new DatabaseConfig();
     dbConfig.setReadOnly(readOnly);
@@ -284,6 +287,9 @@ public class MetadataManager implements StoreKeyValue {
     } catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
     }
+    finally {
+      close();
+    }
   }
 
   public String get(String key) {
@@ -297,6 +303,9 @@ public class MetadataManager implements StoreKeyValue {
         return null;
     } catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
+    }
+    finally {
+      close();
     }
   }
 

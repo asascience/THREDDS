@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Formatter;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract superclass for Feature Collection Datasets.
@@ -187,7 +188,13 @@ public abstract class InvDatasetFeatureCollection implements Closeable {
 
   protected void makeCollection() {
     Formatter errlog = new Formatter();
-    datasetCollection = new MFileCollectionManager(config, errlog, logger);
+    if (config.spec.startsWith("s3fs:")) {
+        config.spec = config.spec.replace("s3fs:", "/data/");
+        datasetCollection = new MFileS3CollectionManager(config, errlog, logger);
+    }
+    else {
+        datasetCollection = new MFileCollectionManager(config, errlog, logger);
+    }
     topDirectory = datasetCollection.getRoot();
     String errs = errlog.toString();
     if (errs.length() > 0) logger.warn("MFileCollectionManager parse error = {} ", errs);
@@ -200,6 +207,10 @@ public abstract class InvDatasetFeatureCollection implements Closeable {
     if (!config.collectionName.equals(event.getCollectionName())) return; // not for me
 
     try {
+      if (event.getSource() == "trigger" ) {
+          logger.info("TRIGGER received: resetting bdb.MetadataManager");
+          thredds.inventory.bdb.MetadataManager.closeAll(); // BDB closeAll on triggers
+      }
       update(event.getType());
     } catch (IOException e) {
       logger.error("Error processing event", e);
@@ -435,6 +446,8 @@ public abstract class InvDatasetFeatureCollection implements Closeable {
       Collections.reverse(sortedFilenames);
     }
 
+    // use indexed file sizes from CollectionAbstract.getFilenamesAndSizes(), avoid using File
+    Map<String, Long> mapFilenamesAndSizes = datasetCollection.getFilenamesAndSizes();
     for (String f : sortedFilenames) {
       if (!f.startsWith(topDirectory))
         logger.warn("File {} doesnt start with topDir {}", f, topDirectory);
@@ -450,8 +463,13 @@ public abstract class InvDatasetFeatureCollection implements Closeable {
       ds.put(Dataset.Id, lpath);
       ds.put(Dataset.VariableMapLinkURI, new ThreddsMetadata.UriResolved(makeMetadataLink(lpath, VARIABLES), catURI));
 
-      File file = new File(f);
-      ds.put(Dataset.DataSize, file.length());
+      // TODO: don't use File here, use the MFile that we get the list from
+      Long fileLength = mapFilenamesAndSizes.get(f);
+      if(fileLength == null) {
+          File file = new File(f);
+          fileLength = file.length();
+      }
+      ds.put(Dataset.DataSize, fileLength);
       top.addDataset(ds);
     }
 

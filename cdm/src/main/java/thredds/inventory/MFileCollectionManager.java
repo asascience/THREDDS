@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @ThreadSafe
 public class MFileCollectionManager extends CollectionManagerAbstract {
-  static private MController controller;
+  static protected MController controller;
 
   /**
    * Set the MController used by scan. Defaults to thredds.filesystem.ControllerOS() if not set.
@@ -77,7 +77,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
   @GuardedBy("this")
   private Map<String, String> filesRunDateMap = new HashMap<>();
 
-  private MFileCollectionManager(String collectionName, String collectionSpec, String olderThan, Formatter errlog) {
+  protected MFileCollectionManager(String collectionName, String collectionSpec, String olderThan, Formatter errlog) {
     super(collectionName, null);
     CollectionSpecParser sp = new CollectionSpecParser(collectionSpec, errlog);
     this.recheck = null;

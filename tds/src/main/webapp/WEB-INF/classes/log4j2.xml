@@ -188,6 +188,15 @@
       <appender-ref ref="serverStartup"/>
     </logger>
 
+    <!-- AWS SDK -->
+    <logger name="org.apache.http" level="info" additivity="false">
+      <appender-ref ref="threddsServlet"/>
+    </logger>
+
+    <logger name="software.amazon.awssdk" level="info" additivity="false">
+      <appender-ref ref="threddsServlet"/>
+    </logger>
+
     <!-- =========================================== -->
 
     <logger name="org.apache.http.impl.conn" level="info" additivity="false">

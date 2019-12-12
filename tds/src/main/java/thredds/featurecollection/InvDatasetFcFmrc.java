@@ -217,8 +217,8 @@ public class InvDatasetFcFmrc extends InvDatasetFeatureCollection {
 
     result.addDataset(top);
 
-    for (DatasetBuilder ds : makeRunDatasets(top))
-      top.addDataset(ds);
+    //for (DatasetBuilder ds : makeRunDatasets(top))
+    //  top.addDataset(ds);
 
     return result;
   }
@@ -250,7 +250,7 @@ public class InvDatasetFcFmrc extends InvDatasetFeatureCollection {
     DatasetBuilder top = offCatalog.getTopDataset();
 
     if (top != null)
-      for (DatasetBuilder ds : makeOffsetDatasets(top))
+      for (DatasetBuilder ds : makeForecastDatasets(top))
         top.addDataset(ds);
 
     return offCatalog;

@@ -170,10 +170,10 @@ libraries["jdom2"] = "org.jdom:jdom2:2.0.6"
 // Latest version is 5.0.73. Can we upgrade?
 libraries["je"] = "com.sleepycat:je:4.0.92"
 
-libraries["jna"] = "net.java.dev.jna:jna:4.2.2"
+libraries["jna"] = "net.java.dev.jna:jna:4.4.0"
 
 // replaces the one that we exclude from chronicle-map
-libraries["jna-platform"] = "net.java.dev.jna:jna-platform:4.2.2"
+libraries["jna-platform"] = "net.java.dev.jna:jna-platform:4.4.0"
 
 // replace by javax.time
 libraries["joda-time"] = "joda-time:joda-time:2.9.4"
@@ -199,18 +199,19 @@ libraries["http-builder-ng-okhttp"] = "io.github.http-builder-ng:http-builder-ng
 
 ////////////////////////////// TDS ///////////////////////////////////////////
 
-libraries["aws-java-sdk-s3"] = dependencies.create("com.amazonaws:aws-java-sdk-s3:1.11.236") {
-    // exclude jackson deps so that they can be overridden
-    // with 2.7.x deps to address security issue. See
-    // https://github.com/aws/aws-sdk-java/issues/1159
-    // as of the time these were added, the versions of these were:
-    // jackson-core: 2.6.7
-    // jackson-annotations: 2.6.0
-    // jackson-databind: 2.6.7.1
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-}
+libraries["aws-java-sdk-s3"] = "software.amazon.awssdk:s3:2.10.7"
+//libraries["aws-java-sdk-s3"] = dependencies.create("com.amazonaws:aws-java-sdk-s3:1.11.236") {
+//    // exclude jackson deps so that they can be overridden
+//    // with 2.7.x deps to address security issue. See
+//    // https://github.com/aws/aws-sdk-java/issues/1159
+//    // as of the time these were added, the versions of these were:
+//    // jackson-core: 2.6.7
+//    // jackson-annotations: 2.6.0
+//    // jackson-databind: 2.6.7.1
+//    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+//    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+//    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+//}
 
 // replace the jackson.core libs that were excluded from aws-java-sdk-s3
 libraries["jackson-core"] = "com.fasterxml.jackson.core:jackson-core:2.9.7"

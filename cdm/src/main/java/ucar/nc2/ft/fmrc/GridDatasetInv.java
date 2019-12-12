@@ -86,6 +86,11 @@ public class GridDatasetInv {
       }
     }
 
+    if (true) {
+        //throw new IOException("no index for " + mfile + " (skipping)");
+        throw new IOException();
+    }
+
     // generate it and save it
     GridDataset gds = null;
     try {
