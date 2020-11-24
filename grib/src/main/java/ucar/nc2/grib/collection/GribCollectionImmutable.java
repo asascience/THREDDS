@@ -5,11 +5,12 @@
 
 package ucar.nc2.grib.collection;
 
+import com.google.common.base.MoreObjects;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import thredds.featurecollection.FeatureCollectionConfig;
 import thredds.inventory.MFile;
-import ucar.coord.*;
 import ucar.nc2.Attribute;
 import ucar.nc2.AttributeContainer;
 import ucar.nc2.AttributeContainerHelper;
@@ -19,9 +20,17 @@ import ucar.nc2.constants.FeatureType;
 import ucar.nc2.ft2.coverage.CoverageCollection;
 import ucar.nc2.ft2.coverage.SubsetParams;
 import ucar.nc2.grib.*;
+import ucar.nc2.grib.coord.Coordinate;
+import ucar.nc2.grib.coord.CoordinateEns;
+import ucar.nc2.grib.coord.CoordinateRuntime;
+import ucar.nc2.grib.coord.CoordinateTime2D;
+import ucar.nc2.grib.coord.CoordinateTimeAbstract;
+import ucar.nc2.grib.coord.SparseArray;
+import ucar.nc2.grib.coord.TimeCoordIntvValue;
+import ucar.nc2.grib.coord.VertCoordValue;
 import ucar.nc2.grib.grib1.Grib1Variable;
 import ucar.nc2.grib.grib1.tables.Grib1Customizer;
-import ucar.nc2.grib.grib2.table.Grib2Customizer;
+import ucar.nc2.grib.grib2.table.Grib2Tables;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateRange;
 import ucar.nc2.util.cache.FileCacheIF;
@@ -44,14 +53,14 @@ import java.util.*;
  * An Immutable GribCollection, corresponds to one index (ncx) file.
  * The index file has already been read; it is opened and the closed when a variable is first accessed to read in the record array (sa).
  * <p>
- * possible we could use the Proto equivalents, and eliminate GribCollectionMutable ?
+ * Could use the Proto equivalents, and eliminate GribCollectionMutable ?
  *
  * @author caron
  * @since 11/10/2014
  */
 @Immutable
 public abstract class GribCollectionImmutable implements Closeable, FileCacheable {
-  static private final Logger logger = LoggerFactory.getLogger(GribCollectionImmutable.class);
+  private static final Logger logger = LoggerFactory.getLogger(GribCollectionImmutable.class);
   public static int countGC; // debug
 
   public enum Type {    // must match with GribCollectionProto.Dataset.Type
@@ -94,7 +103,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
   protected final GribTables cust;
   protected final String indexFilename;       // full path of index Filename
 
-  protected FileCacheIF objCache = null;  // optional object cache - used in the TDS
+  private FileCacheIF objCache = null;  // optional object cache - used in the TDS
 
   GribCollectionImmutable(GribCollectionMutable gc) {
     countGC++;
@@ -235,12 +244,12 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
   protected abstract String makeVariableId(VariableIndex v);
 
-  public static class Info {
+  static class Info {
     final int version; // the ncx version
     final int center, subcenter, master, local;  // GRIB 1 uses "local" for table version
     final int genProcessType, genProcessId, backProcessId;
 
-    public Info(int version, int center, int subcenter, int master, int local, int genProcessType, int genProcessId, int backProcessId) {
+    Info(int version, int center, int subcenter, int master, int local, int genProcessType, int genProcessId, int backProcessId) {
       this.version = version;
       this.center = center;
       this.subcenter = subcenter;
@@ -251,7 +260,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       this.backProcessId = backProcessId;
     }
 
-    public Info(GribCollectionMutable gc) {
+    Info(GribCollectionMutable gc) {
       this.version = gc.version;
       this.center = gc.center;
       this.subcenter = gc.subcenter;
@@ -264,17 +273,16 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder("Info{");
-      sb.append("version=").append(version);
-      sb.append(", center=").append(center);
-      sb.append(", subcenter=").append(subcenter);
-      sb.append(", master=").append(master);
-      sb.append(", local=").append(local);
-      sb.append(", genProcessType=").append(genProcessType);
-      sb.append(", genProcessId=").append(genProcessId);
-      sb.append(", backProcessId=").append(backProcessId);
-      sb.append('}');
-      return sb.toString();
+      return "Info{" +
+          "version=" + version +
+          ", center=" + center +
+          ", subcenter=" + subcenter +
+          ", master=" + master +
+          ", local=" + local +
+          ", genProcessType=" + genProcessType +
+          ", genProcessId=" + genProcessId +
+          ", backProcessId=" + backProcessId +
+          '}';
     }
   }
 
@@ -308,6 +316,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       return groups.get(index);
     }
 
+    @Nullable
     public GroupGC findGroupById(String id) {
       for (GroupGC g : getGroups()) {
         if (g.getId().equals(id))
@@ -324,7 +333,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
     final List<VariableIndex> variList;
     final List<Coordinate> coords;      // shared coordinates
     final int[] filenose;               // key for GC.fileMap
-    final private Map<VariableIndex, VariableIndex> varMap;
+    private final Map<VariableIndex, VariableIndex> varMap;
 
     public GroupGC(Dataset ds, GribCollectionMutable.GroupGC gc) {
       this.ds = ds;
@@ -372,7 +381,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       return horizCoordSys.getHcs();
     }
 
-    public VariableIndex findVariableByHash(VariableIndex vi) {
+    VariableIndex findVariableByHash(VariableIndex vi) {
       return varMap.get(vi);
     }
 
@@ -425,11 +434,9 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder("GroupGC{");
-      sb.append(GribCollectionImmutable.this.getName());
-      sb.append(" gctype=").append(ds.gctype);
-      sb.append('}');
-      return sb.toString();
+      return MoreObjects.toStringHelper(this)
+          .add("horizCoordSys", horizCoordSys.getDescription())
+          .toString();
     }
 
     public void show(Formatter f) {
@@ -516,17 +523,18 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       }
     }
 
-    public synchronized Record getRecordAt(int sourceIndex) {
+    synchronized Record getRecordAt(int sourceIndex) {
       return sa.getContent(sourceIndex);
     }
 
-    public synchronized Record getRecordAt(int[] sourceIndex) {
+    synchronized Record getRecordAt(int[] sourceIndex) {
       return sa.getContent(sourceIndex);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // coord based record finding. note only one record at a time
-    public synchronized Record getRecordAt(SubsetParams coords) {
+    @Nullable
+    synchronized Record getRecordAt(SubsetParams coords) {
       int[] want = new int[getRank()];
       int count = 0;
       int runIdx = -1;
@@ -541,7 +549,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
           case timeIntv:
             double[] timeIntv = coords.getTimeOffsetIntv();
-            idx = coord.getIndex(new TimeCoord.Tinv((int) timeIntv[0], (int) timeIntv[1]));
+            idx = coord.getIndex(new TimeCoordIntvValue((int) timeIntv[0], (int) timeIntv[1]));
             break;
 
           case time:
@@ -553,7 +561,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
           case time2D:
             timeIntv = coords.getTimeOffsetIntv();
             if (timeIntv != null) {
-              TimeCoord.Tinv coordTinv = new TimeCoord.Tinv((int) timeIntv[0], (int) timeIntv[1]);
+              TimeCoordIntvValue coordTinv = new TimeCoordIntvValue((int) timeIntv[0], (int) timeIntv[1]);
               idx = ((CoordinateTime2D) coord).findTimeIndexFromVal(runIdx, coordTinv); // LOOK can only use if orthogonal
               break;
             }
@@ -575,13 +583,13 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
           case vert:
             double[] vertIntv = coords.getVertCoordIntv();
             if (vertIntv != null) {
-              VertCoord.Level coordVert = new VertCoord.Level(vertIntv[0], vertIntv[1]);
+              VertCoordValue coordVert = new VertCoordValue(vertIntv[0], vertIntv[1]);
               idx = coord.getIndex(coordVert);
               break;
             }
             Double vertCoord = coords.getVertCoord();
             if (vertCoord != null) {
-              VertCoord.Level coordVert = new VertCoord.Level(vertCoord);
+              VertCoordValue coordVert = new VertCoordValue(vertCoord);
               idx = coord.getIndex(coordVert);
             }
             break;
@@ -612,6 +620,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       return result;
     }
 
+    @Nullable
     public Coordinate getCoordinate(Coordinate.Type want) {
       for (int idx : coordIndex)
         if (group.coords.get(idx).getType() == want)
@@ -619,7 +628,8 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       return null;
     }
 
-    public CoordinateTimeAbstract getCoordinateTime() {
+    @Nullable
+    CoordinateTimeAbstract getCoordinateTime() {
       for (int idx : coordIndex)
         if (group.coords.get(idx) instanceof CoordinateTimeAbstract)
           return (CoordinateTimeAbstract) group.coords.get(idx);
@@ -628,8 +638,6 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
     // get the ith coordinate
     public Coordinate getCoordinate(int index) {
-      //if (index >= coordIndex.size())
-      //  System.out.println("HEY GribCollectionImmutable index out of range");
       int grpIndex = coordIndex.get(index);
       return group.coords.get(grpIndex);
     }
@@ -728,19 +736,28 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       return size;
     }
 
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("info", info)
+          .toString();
+    }
+
     public int getRank() {
       return coordIndex.size();
     }
 
     public String toStringFrom() {
-      Formatter sb = new Formatter();
-      sb.format("Variable {%d-%d-%d", info.discipline, info.category, info.parameter);
-      sb.format(", levelType=%d", info.levelType);
-      sb.format(", intvType=%d", info.intvType);
-      sb.format(", nrecords=%d", nrecords);
-      sb.format(", ndups=%d", ndups);
-      sb.format(", nmiss=%d}", nmissing);
-      return sb.toString();
+      try (Formatter sb = new Formatter()) {
+        sb.format("Variable {%d-%d-%d", info.discipline, info.category, info.parameter);
+        sb.format(", levelType=%d", info.levelType);
+        sb.format(", intvType=%d", info.intvType);
+        sb.format(", nrecords=%d", nrecords);
+        sb.format(", ndups=%d", ndups);
+        sb.format(", nmiss=%d}", nmissing);
+        return sb.toString();
+      }
     }
 
     @Override
@@ -761,14 +778,14 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       if (isGrib1)
         return ((Grib1Variable) gribVariable).makeVariableName(config.gribConfig);
       else
-        return Grib2Iosp.makeVariableNameFromTable((Grib2Customizer) cust, GribCollectionImmutable.this, this, config.gribConfig.useGenType);
+        return Grib2Iosp.makeVariableNameFromTable((Grib2Tables) cust, GribCollectionImmutable.this, this, config.gribConfig.useGenType);
     }
 
     public String makeVariableUnits() {
       if (isGrib1)
         return Grib1Iosp.makeVariableUnits((Grib1Customizer) cust, GribCollectionImmutable.this, this);
       else
-        return Grib2Iosp.makeVariableUnits((Grib2Customizer) cust, this);
+        return Grib2Iosp.makeVariableUnits((Grib2Tables) cust, this);
     }
 
     public String makeVariableDescription() {
@@ -776,14 +793,14 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
         return Grib1Iosp.makeVariableLongName((Grib1Customizer) cust, getCenter(), getSubcenter(), getTableVersion(), getParameter(),
                 getLevelType(), isLayer(), getIntvType(), getIntvName(), getProbabilityName());
       else
-        return Grib2Iosp.makeVariableLongName((Grib2Customizer) cust, this, config.gribConfig.useGenType);
+        return Grib2Iosp.makeVariableLongName((Grib2Tables) cust, this, config.gribConfig.useGenType);
     }
 
     public GribTables.Parameter getGribParameter() {
       if (isGrib1)
         return ((Grib1Customizer) cust).getParameter(getCenter(), getSubcenter(), getVersion(), getParameter());
       else
-        return ((Grib2Customizer) cust).getParameter(getDiscipline(), getCategory(), getParameter());
+        return ((Grib2Tables) cust).getParameter(this);
     }
 
     public GribStatType getStatType() {
@@ -794,11 +811,10 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
     public final class Info {
       final int tableVersion;   // grib1 only : can vary by variable
       final int discipline;     // grib2 only
-      // final byte[] rawPds;      // grib1 or grib2
 
       // derived from pds
       final int category, parameter, levelType, intvType, ensDerivedType, probType;
-      final String intvName;  // eg "mixed intervals, 3 Hour, etc"
+      @Nullable final String intvName;  // eg "mixed intervals, 3 Hour, etc"
       final String probabilityName;
       final boolean isLayer, isEnsemble;
       final int genProcessType;
@@ -807,7 +823,6 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
       public Info(GribCollectionMutable.VariableIndex gcVar) {
         this.tableVersion = gcVar.tableVersion;
         this.discipline = gcVar.discipline;
-        // this.rawPds = gcVar.rawPds;
         this.category = gcVar.category;
         this.parameter = gcVar.parameter;
         this.levelType = gcVar.levelType;
@@ -820,6 +835,15 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
         this.isEnsemble = gcVar.isEnsemble;
         this.genProcessType = gcVar.genProcessType;
         this.spatialStatType = gcVar.spatialStatType;
+      }
+
+      @Override
+      public String toString() {
+        return MoreObjects.toStringHelper(this)
+            .add("discipline", discipline)
+            .add("category", category)
+            .add("parameter", parameter)
+            .toString();
       }
     }
 
@@ -841,13 +865,12 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder("GribCollection.Record{");
-      sb.append("fileno=").append(fileno);
-      sb.append(", startPos=").append(pos);
-      sb.append(", bmsOffset=").append(bmsOffset);
-      sb.append(", drsOffset=").append(drsOffset);
-      sb.append('}');
-      return sb.toString();
+      return "Record{" +
+          "fileno=" + fileno +
+          ", pos=" + pos +
+          ", bmsOffset=" + bmsOffset +
+          ", drsOffset=" + drsOffset +
+          '}';
     }
   }
 
@@ -856,16 +879,16 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
   public synchronized void close() throws java.io.IOException {
     if (objCache != null) {
-      if (objCache.release(this)) return;
+      objCache.release(this);
     }
   }
 
   // release any resources like file handles
-  public void release() throws IOException {
+  public void release() {
   }
 
   // reacquire any resources like file handles
-  public void reacquire() throws IOException {
+  public void reacquire() {
   }
 
   @Override
@@ -962,7 +985,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
   }
 
-  public void showIndexFile(Formatter f) {
+  private void showIndexFile(Formatter f) {
     if (indexFilename == null) return;
     f.format("indexFile=%s%n", indexFilename);
     try {
@@ -1006,18 +1029,19 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder("GribCollectionImmutable{");
-    sb.append("\n name='").append(name).append('\'');
-    sb.append("\n directory=").append(directory);
-    sb.append("\n config=").append(config);
-    sb.append("\n isGrib1=").append(isGrib1);
-    sb.append("\n dateRange=").append(dateRange);
-    sb.append("\n}");
-    return sb.toString();
+    return "GribCollectionImmutable{" +
+        "name='" + name + '\'' +
+        ", directory=" + directory +
+        ", config=" + config +
+        ", isGrib1=" + isGrib1 +
+        ", info=" + info +
+        ", masterRuntime=" + masterRuntime.getName() +
+        ", dateRange=" + dateRange +
+        ", indexFilename='" + indexFilename + '\'' +
+        '}';
   }
 
-
-  ////////////////////////////////////////
+////////////////////////////////////////
 
   public long getIndexFileSize() {
     File indexFile = new File(indexFilename);
@@ -1032,14 +1056,11 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
     return fileMap.get(fileno).getPath();
   }
 
-  public String getFirstFilename() {
-    return null; // fileMap.get(fileno).getPath(); LOOK
-  }
-
   public Collection<MFile> getFiles() {
     return fileMap.values();
   }
 
+  @Nullable
   public MFile findMFileByName(String filename) {
     for (MFile file : fileMap.values())
       if (file.getName().equals(filename))
@@ -1047,7 +1068,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
     return null;
   }
 
-  public RandomAccessFile getDataRaf(int fileno) throws IOException {
+  RandomAccessFile getDataRaf(int fileno) throws IOException {
     // absolute location
     MFile mfile = fileMap.get(fileno);
     String filename = mfile.getPath();
@@ -1072,7 +1093,7 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
     return want;
   }
 
-  public String getDataRafFilename(int fileno) throws IOException {
+  String getDataRafFilename(int fileno) {
     MFile mfile = fileMap.get(fileno);
     return mfile.getPath();
   }
@@ -1080,12 +1101,15 @@ public abstract class GribCollectionImmutable implements Closeable, FileCacheabl
   ///////////////////////
 
   // stuff needed by InvDatasetFcGrib
+  @Nullable
   public abstract ucar.nc2.dataset.NetcdfDataset getNetcdfDataset(Dataset ds, GroupGC group, String filename,
                                                                   FeatureCollectionConfig gribConfig, Formatter errlog, org.slf4j.Logger logger) throws IOException;
 
+  @Nullable
   public abstract ucar.nc2.dt.grid.GridDataset getGridDataset(Dataset ds, GroupGC group, String filename,
                                                               FeatureCollectionConfig gribConfig, Formatter errlog, org.slf4j.Logger logger) throws IOException;
 
+  @Nullable
   public abstract CoverageCollection getGridCoverage(Dataset ds, GroupGC group, String filename,
                                                      FeatureCollectionConfig gribConfig, Formatter errlog, org.slf4j.Logger logger) throws IOException;
 

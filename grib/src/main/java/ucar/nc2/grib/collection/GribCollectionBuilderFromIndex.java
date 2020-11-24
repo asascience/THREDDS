@@ -5,12 +5,22 @@
 
 package ucar.nc2.grib.collection;
 
+import javax.annotation.Nullable;
 import thredds.featurecollection.FeatureCollectionConfig;
-import com.google.protobuf.ExtensionRegistry;
 import thredds.inventory.MFile;
-import ucar.coord.*;
 import ucar.nc2.constants.CDM;
 import ucar.nc2.grib.*;
+import ucar.nc2.grib.coord.Coordinate;
+import ucar.nc2.grib.coord.CoordinateEns;
+import ucar.nc2.grib.coord.CoordinateRuntime;
+import ucar.nc2.grib.coord.CoordinateTime;
+import ucar.nc2.grib.coord.CoordinateTime2D;
+import ucar.nc2.grib.coord.CoordinateTimeAbstract;
+import ucar.nc2.grib.coord.CoordinateTimeIntv;
+import ucar.nc2.grib.coord.CoordinateVert;
+import ucar.nc2.grib.coord.EnsCoordValue;
+import ucar.nc2.grib.coord.TimeCoordIntvValue;
+import ucar.nc2.grib.coord.VertCoordValue;
 import ucar.nc2.stream.NcStream;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateUnit;
@@ -21,14 +31,14 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Superclass to read GribCollection From ncx file.
+ * Superclass to read GribCollection from ncx file.
  *
  * @author caron
  * @since 2/20/14
  */
 abstract class GribCollectionBuilderFromIndex {
-  static protected final boolean debug = false;
-  static protected final boolean stackTrace = true;
+  protected static final boolean debug = false;
+  private static final boolean stackTrace = true;
 
   protected GribCollectionMutable gc;
   protected final org.slf4j.Logger logger;
@@ -41,7 +51,8 @@ abstract class GribCollectionBuilderFromIndex {
   protected abstract int getVersion();
   protected abstract int getMinVersion();
 
-  protected GribCollectionBuilderFromIndex(GribCollectionMutable gc, FeatureCollectionConfig config, org.slf4j.Logger logger) {
+  GribCollectionBuilderFromIndex(GribCollectionMutable gc, FeatureCollectionConfig config,
+      org.slf4j.Logger logger) {
     this.logger = logger;
     this.config = config;
     this.gc = gc;
@@ -49,7 +60,7 @@ abstract class GribCollectionBuilderFromIndex {
 
   protected abstract String getMagicStart();
 
-  protected boolean readIndex(RandomAccessFile raf) throws IOException {
+  protected boolean readIndex(RandomAccessFile raf) {
 
     gc.setIndexRaf(raf);
     try {
@@ -75,7 +86,7 @@ abstract class GribCollectionBuilderFromIndex {
       // these are the variable records
       long skip = raf.readLong();
       raf.skipBytes(skip);
-      if (debug) System.out.printf("GribCollectionBuilderFromIndex %s (%s) records len = %d%n", raf.getLocation(), getMagicStart(), skip);
+      logger.debug("GribCollectionBuilderFromIndex %s (%s) records len = %d%n", raf.getLocation(), getMagicStart(), skip);
 
       int size = NcStream.readVInt(raf);
       if ((size < 0) || (size > 300 * 1000 * 1000)) { // ncx bigger than 300 MB?
@@ -83,7 +94,7 @@ abstract class GribCollectionBuilderFromIndex {
         throw new IllegalStateException();   // temp debug
         //return false;
       }
-      if (debug) System.out.printf("GribCollectionBuilderFromIndex proto len = %d%n", size);
+      logger.debug("GribCollectionBuilderFromIndex proto len = %d%n", size);
 
       byte[] m = new byte[size];
       raf.readFully(m);
@@ -125,7 +136,6 @@ abstract class GribCollectionBuilderFromIndex {
       gc.genProcessType = proto.getGenProcessType();
       gc.genProcessId = proto.getGenProcessId();
       gc.backProcessId = proto.getBackProcessId();
-      gc.local = proto.getLocal();
       this.tables = makeCustomizer();
       gc.cust = this.tables;
 
@@ -148,7 +158,7 @@ abstract class GribCollectionBuilderFromIndex {
         fsize += mf.getFilename().length();
       }
       gc.setFileMap(fileMap);
-      if (debug) System.out.printf("GribCollectionBuilderFromIndex files len = %d%n", fsize);
+      logger.debug("GribCollectionBuilderFromIndex files len = %d%n", fsize);
 
       gc.masterRuntime = (CoordinateRuntime) readCoord(proto.getMasterRuntime());
 
@@ -186,7 +196,7 @@ message Dataset {
   repeated Group groups = 2;      // separate group for each GDS
 }
  */
-  private PartitionCollectionMutable.Dataset readDataset(GribCollectionProto.Dataset p) {
+  private GribCollectionMutable.Dataset readDataset(GribCollectionProto.Dataset p) {
     GribCollectionImmutable.Type type = GribCollectionImmutable.Type.valueOf(p.getType().toString());
     GribCollectionMutable.Dataset ds = gc.makeDataset(type);
 
@@ -308,7 +318,7 @@ message Group {
       CoordinateRuntime runtime2D = t2d.getRuntimeCoordinate();
       CoordinateRuntime runtime = runtimes.get(runtime2D);
       if (runtime == null)
-        System.out.printf("HEY assignRuntimeNames failed on %s group %s%n", t2d.getName(), groupId);
+        logger.warn("HEY assignRuntimeNames failed on %s group %s%n", t2d.getName(), groupId);
       else
         runtime2D.setName(runtime.getName());
     }
@@ -349,11 +359,11 @@ message Coord {
         return new CoordinateTime(code, timeUnit, refDate, offs, readTime2Runtime(pc));
 
       case timeIntv:
-        List<TimeCoord.Tinv> tinvs = new ArrayList<>(pc.getValuesCount());
+        List<TimeCoordIntvValue> tinvs = new ArrayList<>(pc.getValuesCount());
         for (int i = 0; i < pc.getValuesCount(); i++) {
           int val1 = (int) pc.getValues(i);
           int val2 = (int) pc.getBound(i);
-          tinvs.add(new TimeCoord.Tinv(val1, val2));
+          tinvs.add(new TimeCoordIntvValue(val1, val2));
         }
         refDate = CalendarDate.of(pc.getMsecs(0));
         if (unit == null)
@@ -381,29 +391,28 @@ message Coord {
 
       case vert:
         boolean isLayer = pc.getValuesCount() == pc.getBoundCount();
-        List<VertCoord.Level> levels = new ArrayList<>(pc.getValuesCount());
+        List<VertCoordValue> levels = new ArrayList<>(pc.getValuesCount());
         for (int i = 0; i < pc.getValuesCount(); i++) {
           if (isLayer)
-            levels.add(new VertCoord.Level(pc.getValues(i), pc.getBound(i)));
+            levels.add(new VertCoordValue(pc.getValues(i), pc.getBound(i)));
           else
-            levels.add(new VertCoord.Level(pc.getValues(i)));
+            levels.add(new VertCoordValue(pc.getValues(i)));
         }
         return new CoordinateVert(code, tables.getVertUnit(code), levels);
 
       case ens:
-        List<EnsCoord.Coord> ecoords = new ArrayList<>(pc.getValuesCount());
+        List<EnsCoordValue> ecoords = new ArrayList<>(pc.getValuesCount());
         for (int i = 0; i < pc.getValuesCount(); i++) {
           double val1 = pc.getValues(i);
           double val2 = pc.getBound(i);
-          ecoords.add(new EnsCoord.Coord((int)val1, (int)val2));
+          ecoords.add(new EnsCoordValue((int)val1, (int)val2));
         }
         return new CoordinateEns(code, ecoords);
-
-
     }
     throw new IllegalStateException("Unknown Coordinate type = " + type);
   }
 
+  @Nullable
   private int[] readTime2Runtime(GribCollectionProto.Coord pc) {
     if (pc.getTime2RuntimeCount() > 0) {
       int[] time2runtime = new int[pc.getTime2RuntimeCount()];
@@ -414,7 +423,8 @@ message Coord {
     return null;
   }
 
-  protected GribCollectionMutable.VariableIndex readVariable(GribCollectionMutable.GroupGC group, GribCollectionProto.Variable pv) {
+  private GribCollectionMutable.VariableIndex readVariable(GribCollectionMutable.GroupGC group,
+      GribCollectionProto.Variable pv) {
     int discipline = pv.getDiscipline();
 
     byte[] rawPds = pv.getPds().toByteArray();
@@ -436,7 +446,7 @@ message Coord {
     return readVariableExtensions(group, pv, result);
   }
 
-  static public Coordinate.Type convertAxisType(GribCollectionProto.GribAxisType type) {
+  private static Coordinate.Type convertAxisType(GribCollectionProto.GribAxisType type) {
     switch (type) {
       case runtime:
         return Coordinate.Type.runtime;
@@ -456,9 +466,9 @@ message Coord {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////
   // these objects are created from the ncx index. lame - should only be in the builder i think
-  private Set<String> hcsNames = new HashSet<>(5);
+  private final Set<String> hcsNames = new HashSet<>(5);
 
-  protected String makeHorizCoordSysName(GdsHorizCoordSys hcs) {
+  String makeHorizCoordSysName(GdsHorizCoordSys hcs) {
     // default id
     String base = hcs.makeId();
     // ensure uniqueness

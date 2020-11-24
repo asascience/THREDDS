@@ -5,6 +5,7 @@
 
 package ucar.nc2.grib.grib1;
 
+import java.util.Objects;
 import ucar.nc2.grib.GribTables;
 import ucar.nc2.grib.GribUtils;
 import ucar.nc2.grib.grib1.tables.Grib1ParamTableReader;
@@ -33,7 +34,7 @@ public class Grib1Parameter implements GribTables.Parameter {
     this.number = number;
     this.name = setName(name);
     this.description = setDescription(description);
-    this.unit = unit; // setUnit(unit);
+    this.unit = unit; // cleanupUnit(unit);
     this.cfName = null;
   }
 
@@ -42,7 +43,7 @@ public class Grib1Parameter implements GribTables.Parameter {
     this.number = number;
     this.name = setName(name);
     this.description = setDescription(description);
-    this.unit = unit; // setUnit(unit);
+    this.unit = unit; // cleanupUnit(unit);
     this.cfName = cf_name;
   }
 
@@ -66,11 +67,6 @@ public class Grib1Parameter implements GribTables.Parameter {
   }
 
   @Override
-  public int getValue() {
-    return -1;
-  }
-
-  @Override
   public String getName() {
     return name;
   }
@@ -79,12 +75,7 @@ public class Grib1Parameter implements GribTables.Parameter {
     return (name != null) && table.useParamName();
   }
 
-   /**
-   * description of parameter.
-   *
-   * @return description
-   */
-   @Override
+  @Override
   public final String getDescription() {
     return description;
   }
@@ -94,11 +85,6 @@ public class Grib1Parameter implements GribTables.Parameter {
     return table.getCenter_id() + "." + table.getSubcenter_id() + "." + number;
   }
 
-  /**
-   * unit of parameter.
-   *
-   * @return unit
-   */
   @Override
   public final String getUnit() {
     return unit;
@@ -119,12 +105,17 @@ public class Grib1Parameter implements GribTables.Parameter {
     return Float.NaN;
   }
 
+  @Override
+  public String getOperationalStatus() {
+    return null;
+  }
+
   public String getCFname() {
     return cfName;
   }
 
   private String setName(String name) {
-    if (name == null) return null;
+    if (name == null) name = "";
     return StringUtil2.replace(name, ' ', "_"); // replace blanks
   }
 
@@ -132,7 +123,7 @@ public class Grib1Parameter implements GribTables.Parameter {
     return GribUtils.cleanupDescription(description);
   }
 
-  private String setUnit(String unit) {
+  private String cleanupUnit(String unit) {
     return GribUtils.cleanupUnits(unit);
   }
 
@@ -154,10 +145,10 @@ public class Grib1Parameter implements GribTables.Parameter {
     Grib1Parameter that = (Grib1Parameter) o;
 
     if (number != that.number) return false;
-    if (cfName != null ? !cfName.equals(that.cfName) : that.cfName != null) return false;
-    if (description != null ? !description.equals(that.description) : that.description != null) return false;
-    if (name != null ? !name.equals(that.name) : that.name != null) return false;
-    if (unit != null ? !unit.equals(that.unit) : that.unit != null) return false;
+    if (!Objects.equals(cfName, that.cfName)) return false;
+    if (!Objects.equals(description, that.description)) return false;
+    if (!Objects.equals(name, that.name)) return false;
+    if (!Objects.equals(unit, that.unit)) return false;
 
     return true;
   }

@@ -27,7 +27,7 @@ class PublishToRawRepoTask extends DefaultTask {
     @Input
     String host
     
-    /** The name of the raw repository to publish to, e.g. {@code thredds-doc}. */
+    /** The name of the raw repository to publish to, e.g. {@code old-thredds-doc}. */
     @Input
     String repoName
     
@@ -99,7 +99,7 @@ class PublishToRawRepoTask extends DefaultTask {
     
         HttpBuilder http = OkHttpBuilder.configure {
             request.uri = host
-            request.uri.path = "/service/rest/beta/components"
+            request.uri.path = "/service/rest/v1/components"
             request.uri.query['repository'] = repoName
             
             request.contentType = ContentTypes.MULTIPART_FORMDATA.first()

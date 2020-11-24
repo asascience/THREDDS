@@ -4,22 +4,24 @@
  */
 package ucar.nc2.grib.collection;
 
-import ucar.coord.*;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import ucar.nc2.grib.coord.Coordinate;
+import ucar.nc2.grib.coord.CoordinateRuntime;
+import ucar.nc2.grib.coord.CoordinateSharerBest;
+import ucar.nc2.grib.coord.CoordinateTime2D;
+import ucar.nc2.grib.coord.CoordinateTimeAbstract;
 
 /**
- * not used yet.
+ * Not used yet.
  *
  * @author caron
  * @since 3/8/2016.
  */
 public class GribBestDatasetBuilder {
 
-  static void makeDatasetBest(GribCollectionMutable result, List<GribCollectionMutable.GroupGC> groups2D, boolean isComplete) throws IOException {
+  static void makeDatasetBest(GribCollectionMutable result, List<GribCollectionMutable.GroupGC> groups2D, boolean isComplete) {
     GribCollectionMutable.Dataset dsBest = result.makeDataset(isComplete ? GribCollectionImmutable.Type.BestComplete : GribCollectionImmutable.Type.Best);
 
     // int npart = result.getPartitionSize();

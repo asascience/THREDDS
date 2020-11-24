@@ -71,6 +71,7 @@ dependencies {
     testCompile libraries["jaxen"]
 
     // edal ncwms related libs
+    compile libraries["ehcache"]
     compile libraries["edal-common"]
     compile libraries["edal-cdm"]
     compile libraries["edal-graphics"]
@@ -82,6 +83,9 @@ dependencies {
 
     runtime libraries["Saxon-HE"]
     runtime libraries["jaxen"]
+
+    // json writing
+    libraries["json"]
 
     // JSR 303 with Hibernate Validator, which is dragging in jboss logging
     compile libraries["validation-api"]
@@ -117,8 +121,8 @@ test {
     exclude 'thredds/tds/**'
 }
 
-// Need to evaluate :ui first so that the 'webstartCodebase' property is available.
-Project uiProject = rootProject.project(':ui')
+// Need to evaluate :uicdm first so that the 'webstartCodebase' property is available.
+Project uiProject = rootProject.project(':uicdm')
 evaluationDependsOn uiProject.path
 
 task toolsUiJnlpBase(type: ToolsUiJnlpBaseTask) {

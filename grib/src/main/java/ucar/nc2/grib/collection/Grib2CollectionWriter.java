@@ -7,8 +7,15 @@ package ucar.nc2.grib.collection;
 
 import com.google.protobuf.ByteString;
 import thredds.inventory.*;
-import ucar.coord.*;
 import ucar.nc2.constants.CDM;
+import ucar.nc2.grib.coord.Coordinate;
+import ucar.nc2.grib.coord.CoordinateEns;
+import ucar.nc2.grib.coord.CoordinateRuntime;
+import ucar.nc2.grib.coord.CoordinateTime;
+import ucar.nc2.grib.coord.CoordinateTime2D;
+import ucar.nc2.grib.coord.CoordinateTimeIntv;
+import ucar.nc2.grib.coord.CoordinateVert;
+import ucar.nc2.grib.coord.SparseArray;
 import ucar.nc2.grib.grib2.*;
 import ucar.nc2.stream.NcStream;
 import ucar.nc2.time.CalendarDate;
@@ -27,23 +34,23 @@ import java.util.*;
  */
 class Grib2CollectionWriter extends GribCollectionWriter {
   public static final String MAGIC_START = "Grib2Collectio2Index";  // was Grib2CollectionIndex
-  protected static final int minVersion = 1;  // increment this when you want to force index rebuild
+  static final int minVersion = 1;  // increment this when you want to force index rebuild
   protected static final int version = 3;     // increment this as needed, must be backwards compatible through minVersion
 
-  protected Grib2CollectionWriter(MCollection dcm, org.slf4j.Logger logger) {
+  Grib2CollectionWriter(MCollection dcm, org.slf4j.Logger logger) {
     super(dcm, logger);
   }
 
   public static class Group implements GribCollectionBuilder.Group {
-    public Grib2SectionGridDefinition gdss;
-    public int hashCode;       // may have been modified
+    public final Grib2SectionGridDefinition gdss;
+    public final int hashCode;       // may have been modified
     public CalendarDate runtime;
 
-    public List<Grib2CollectionBuilder.VariableBag> gribVars;
+    List<Grib2CollectionBuilder.VariableBag> gribVars;
     public List<Coordinate> coords;
-    public List<Grib2Record> records = new ArrayList<>();
-    public Set<Integer> fileSet; // this is so we can show just the component files that are in this group
-    public Set<Long> runtimes = new HashSet<>();
+    public final List<Grib2Record> records = new ArrayList<>();
+    public final Set<Long> runtimes = new HashSet<>();
+    Set<Integer> fileSet; // this is so we can show just the component files that are in this group
 
     Group(Grib2SectionGridDefinition gdss, int hashCode) {
       this.gdss = gdss;
@@ -120,7 +127,7 @@ class Grib2CollectionWriter extends GribCollectionWriter {
           countBytes += b.length;
           countRecords += vb.coordND.getSparseArray().countNotMissing();
         }
-        for (int index : g.fileSet) allFileSet.add(index);
+        allFileSet.addAll(g.fileSet);
       }
 
       if (logger.isDebugEnabled()) {
@@ -241,7 +248,7 @@ class Grib2CollectionWriter extends GribCollectionWriter {
     uint32 ndups = 5;                           // duplicates found when creating
   }
    */
-  private GribCollectionProto.SparseArray writeSparseArray(Grib2CollectionBuilder.VariableBag vb, Set<Integer> fileSet) throws IOException {
+  private GribCollectionProto.SparseArray writeSparseArray(Grib2CollectionBuilder.VariableBag vb, Set<Integer> fileSet) {
     GribCollectionProto.SparseArray.Builder b = GribCollectionProto.SparseArray.newBuilder();
     SparseArray<Grib2Record> sa = vb.coordND.getSparseArray();
     for (int size : sa.getShape())
@@ -276,7 +283,7 @@ class Grib2CollectionWriter extends GribCollectionWriter {
     required Type type = 1;
     repeated Group groups = 2;
    */
-  private GribCollectionProto.Dataset writeDatasetProto(GribCollectionImmutable.Type type, List<Group> groups) throws IOException {
+  private GribCollectionProto.Dataset writeDatasetProto(GribCollectionImmutable.Type type, List<Group> groups) {
     GribCollectionProto.Dataset.Builder b = GribCollectionProto.Dataset.newBuilder();
 
     GribCollectionProto.Dataset.Type ptype = GribCollectionProto.Dataset.Type.valueOf(type.toString());
@@ -296,7 +303,7 @@ class Grib2CollectionWriter extends GribCollectionWriter {
     repeated uint32 fileno = 4 [packed=true]; // the component files that are in this group, key into gc.mfiles
   }
    */
-  protected GribCollectionProto.Group writeGroupProto(Group g) throws IOException {
+  private GribCollectionProto.Group writeGroupProto(Group g) {
     GribCollectionProto.Group.Builder b = GribCollectionProto.Group.newBuilder();
 
     b.setGds( writeGdsProto(g.gdss.getRawBytes(), -1));
@@ -355,7 +362,7 @@ class Grib2CollectionWriter extends GribCollectionWriter {
    repeated PartitionVariable partVariable = 100;
    }
    */
-  private GribCollectionProto.Variable writeVariableProto(Grib2CollectionBuilder.VariableBag vb) throws IOException {
+  private GribCollectionProto.Variable writeVariableProto(Grib2CollectionBuilder.VariableBag vb) {
     GribCollectionProto.Variable.Builder b = GribCollectionProto.Variable.newBuilder();
 
     b.setDiscipline(vb.first.getDiscipline());

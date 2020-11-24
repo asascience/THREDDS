@@ -6,14 +6,15 @@
 package ucar.nc2.grib.collection;
 
 import com.google.common.base.Throwables;
+import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ucar.coord.CoordinateTime2D;
+import ucar.nc2.grib.coord.CoordinateTime2D;
 import ucar.ma2.*;
 import ucar.nc2.ft2.coverage.CoordsSet;
 import ucar.nc2.ft2.coverage.SubsetParams;
 import ucar.nc2.grib.GdsHorizCoordSys;
-import ucar.nc2.grib.TimeCoord;
+import ucar.nc2.grib.coord.TimeCoordIntvDateValue;
 import ucar.nc2.grib.grib1.Grib1ParamTime;
 import ucar.nc2.grib.grib1.Grib1Parameter;
 import ucar.nc2.grib.grib1.Grib1Record;
@@ -21,7 +22,7 @@ import ucar.nc2.grib.grib1.Grib1SectionProductDefinition;
 import ucar.nc2.grib.grib1.tables.Grib1Customizer;
 import ucar.nc2.grib.grib2.Grib2Record;
 import ucar.nc2.grib.grib2.Grib2RecordScanner;
-import ucar.nc2.grib.grib2.table.Grib2Customizer;
+import ucar.nc2.grib.grib2.table.Grib2Tables;
 import ucar.nc2.util.Misc;
 import ucar.unidata.io.RandomAccessFile;
 
@@ -38,7 +39,7 @@ import java.util.*;
  */
 @Immutable
 public abstract class GribDataReader {
-  static private final Logger logger = LoggerFactory.getLogger(GribDataReader.class);
+  private static final Logger logger = LoggerFactory.getLogger(GribDataReader.class);
 
 
   public static GribDataReader factory(GribCollectionImmutable gribCollection, GribCollectionImmutable.VariableIndex vindex) {
@@ -52,14 +53,14 @@ public abstract class GribDataReader {
   protected abstract void show(RandomAccessFile rafData, long dataPos) throws IOException;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  static public GribCollectionImmutable.Record currentDataRecord;
-  static public GribDataValidator validator;
-  static public String currentDataRafFilename;
+  public static GribCollectionImmutable.Record currentDataRecord;
+  public static GribDataValidator validator;
+  public static String currentDataRafFilename;
   static boolean show = false;   // debug
 
   protected final GribCollectionImmutable gribCollection;
   private final GribCollectionImmutable.VariableIndex vindex;
-  private List<DataRecord> records = new ArrayList<>();
+  private final List<DataRecord> records = new ArrayList<>();
 
   protected GribDataReader(GribCollectionImmutable gribCollection, GribCollectionImmutable.VariableIndex vindex) {
     this.gribCollection = gribCollection;
@@ -70,11 +71,8 @@ public abstract class GribDataReader {
    * Read the section of data described by want
    * @param want which data do you want?
    * @return data as an Array
-   * @throws IOException
-   * @throws InvalidRangeException
    */
   public Array readData(SectionIterable want) throws IOException, InvalidRangeException {
-    // System.out.printf("%nGribDataReader.want=%n%s%n", want.show());
     if (vindex instanceof PartitionCollectionImmutable.VariableIndexPartitioned)
       return readDataFromPartition((PartitionCollectionImmutable.VariableIndexPartitioned) vindex, want);
     else
@@ -88,7 +86,7 @@ public abstract class GribDataReader {
    want.getShape() indicates the result Array shape.
    SectionIterable.next(int[] index) is not used here.
    */
-  private Array readDataFromCollection(GribCollectionImmutable.VariableIndex vindex, SectionIterable want) throws IOException, InvalidRangeException {
+  private Array readDataFromCollection(GribCollectionImmutable.VariableIndex vindex, SectionIterable want) throws IOException {
     // first time, read records and keep in memory
     vindex.readRecords();
 
@@ -103,7 +101,7 @@ public abstract class GribDataReader {
       // addRecord(sourceIndex, count++);
       GribCollectionImmutable.Record record = vindex.getRecordAt(sourceIndex);
       if (Grib.debugRead)
-        System.out.printf("GribIosp debugRead sourceIndex=%d resultIndex=%d record is null=%s%n", sourceIndex, resultIndex, record == null);
+        logger.debug("GribIosp debugRead sourceIndex=%d resultIndex=%d record is null=%s%n", sourceIndex, resultIndex, record == null);
       if (record != null)
         records.add( new DataRecord(resultIndex, record, vindex.group.getGdsHorizCoordSys()));
       resultIndex++;
@@ -120,7 +118,7 @@ public abstract class GribDataReader {
    The work of translating that down into partition heirarchy and finally to a GC is all in VariableIndexPartitioned.getDataRecord(int[] index)
    want.getShape() indicates the result Array shape.
  */
-  private Array readDataFromPartition(PartitionCollectionImmutable.VariableIndexPartitioned vindexP, SectionIterable section) throws IOException, InvalidRangeException {
+  private Array readDataFromPartition(PartitionCollectionImmutable.VariableIndexPartitioned vindexP, SectionIterable section) throws IOException {
 
     int rank = section.getRank();
     SectionIterable sectionWanted = section.subSection(0, rank - 2); // all but x, y
@@ -149,7 +147,7 @@ public abstract class GribDataReader {
 
       PartitionCollectionImmutable.DataRecord record = vindexP.getDataRecord(useIndex);
       if (record == null) {
-        if (Grib.debugRead) System.out.printf("readDataFromPartition missing data%n");
+        if (Grib.debugRead) logger.debug("readDataFromPartition missing data%n");
         resultPos++; // can just skip, since result is prefilled with NaNs
         continue;
       }
@@ -168,14 +166,14 @@ public abstract class GribDataReader {
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Coordinate based subsetting for Coverage
 
-  public Array readData2(CoordsSet want, RangeIterator yRange, RangeIterator xRange) throws IOException, InvalidRangeException {
+  public Array readData2(CoordsSet want, RangeIterator yRange, RangeIterator xRange) throws IOException {
     if (vindex instanceof PartitionCollectionImmutable.VariableIndexPartitioned)
       return readDataFromPartition2((PartitionCollectionImmutable.VariableIndexPartitioned) vindex, want, yRange, xRange);
     else
       return readDataFromCollection2(vindex, want, yRange, xRange);
   }
 
-  private Array readDataFromCollection2(GribCollectionImmutable.VariableIndex vindex, CoordsSet want, RangeIterator yRange, RangeIterator xRange) throws IOException, InvalidRangeException {
+  private Array readDataFromCollection2(GribCollectionImmutable.VariableIndex vindex, CoordsSet want, RangeIterator yRange, RangeIterator xRange) throws IOException {
     // first time, read records and keep in memory
     vindex.readRecords();
 
@@ -196,7 +194,7 @@ public abstract class GribDataReader {
     return dataReceiver.getArray();
   }
 
-  private Array readDataFromPartition2(PartitionCollectionImmutable.VariableIndexPartitioned vindexP, CoordsSet want, RangeIterator yRange, RangeIterator xRange) throws IOException, InvalidRangeException {
+  private Array readDataFromPartition2(PartitionCollectionImmutable.VariableIndexPartitioned vindexP, CoordsSet want, RangeIterator yRange, RangeIterator xRange) throws IOException {
 
     // collect all the records that need to be read
     int resultPos = 0;
@@ -218,25 +216,10 @@ public abstract class GribDataReader {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  /*
-   * Identify the record that you want to read
-   * @param sourceIndex 1d index into the vindex.sparseArray
-   * @param resultIndex 1d index into the result array - used by the dataReciever
-   *
-  private void addRecord(int sourceIndex, int resultIndex) {
-    GribCollectionImmutable.Record record = vindex.getRecordAt(sourceIndex);
-    if (GribIosp.debugRead) {
-      System.out.printf("GribIosp debugRead sourceIndex=%d resultIndex=%d record is null=%s%n", sourceIndex, resultIndex, record == null);
-    }
-    if (record != null)
-      records.add( new DataRecord(resultIndex, record.fileno, record.pos, record.bmsPos, record.scanMode, vindex.group.getGdsHorizCoordSys()));
-  } */
-
   /**
    * Read all of the data records that have been added.
    * The full (x,y) record is read, the reciever will subset the (x, y) as needed.
    * @param dataReceiver send data here.
-   * @throws IOException
    */
   private void read(DataReceiverIF dataReceiver) throws IOException {
     Collections.sort(records);
@@ -326,10 +309,10 @@ public abstract class GribDataReader {
     }
   }
 
-  static public class DataRecord implements Comparable<DataRecord> {
+  public static class DataRecord implements Comparable<DataRecord> {
     int resultIndex; // index into the result array
-    GribCollectionImmutable.Record record;
-    GdsHorizCoordSys hcs;
+    final GribCollectionImmutable.Record record;
+    final GdsHorizCoordSys hcs;
     SubsetParams validation;
 
     DataRecord(int resultIndex, GribCollectionImmutable.Record record, GdsHorizCoordSys hcs) {
@@ -339,38 +322,39 @@ public abstract class GribDataReader {
     }
 
     @Override
-    public int compareTo(DataRecord o) {
+    public int compareTo(@Nonnull DataRecord o) {
       int r = Misc.compare(record.fileno, o.record.fileno);
       if (r != 0) return r;
       return Misc.compare(record.pos, o.record.pos);
     }
 
     // debugging
-    public void show(GribCollectionImmutable gribCollection) throws IOException {
+    public void show(GribCollectionImmutable gribCollection) {
       String dataFilename = gribCollection.getFilename(record.fileno);
       System.out.printf(" fileno=%d filename=%s startPos=%d%n", record.fileno, dataFilename, record.pos);
     }
   }
 
   public interface DataReceiverIF {
-    void addData(float[] data, int resultIndex, int nx) throws IOException;
+    void addData(float[] data, int resultIndex, int nx);
     void setDataToZero(); // only used when debugging with gbx/ncx only, to fake the data
     Array getArray();
   }
 
   public static class DataReceiver implements DataReceiverIF {
     private Array dataArray;
-    private RangeIterator yRange, xRange;
-    private int horizSize;
+    private final RangeIterator yRange;
+    private final RangeIterator xRange;
+    private final int horizSize;
 
-    public DataReceiver(int[] shape, RangeIterator yRange, RangeIterator xRange) {
+    DataReceiver(int[] shape, RangeIterator yRange, RangeIterator xRange) {
       this.yRange = yRange;
       this.xRange = xRange;
       this.horizSize = yRange.length() * xRange.length();
 
       long len = Section.computeSize(shape);
       if (len > 100 * 1000 * 1000*4) { // LOOK make configurable
-        logger.debug("Len greater that 100MB shape={}\n{}", Misc.showInts(shape),
+        logger.debug("Len greater that 100MB shape={}%n{}", Misc.showInts(shape),
                 Throwables.getStackTraceAsString(new Throwable()));
         throw new IllegalArgumentException("RequestTooLarge: Len greater that 100M ");
       }
@@ -380,7 +364,7 @@ public abstract class GribDataReader {
     }
 
     @Override
-    public void addData(float[] data, int resultIndex, int nx) throws IOException {
+    public void addData(float[] data, int resultIndex, int nx) {
       int start = resultIndex * horizSize;
       int count = 0;
       for (int y : yRange) {
@@ -445,11 +429,12 @@ public abstract class GribDataReader {
   /////////////////////////////////////////////////////////
 
   private static class Grib2DataReader extends GribDataReader {
-    private Grib2Customizer cust;
+    private final Grib2Tables cust;
 
-    protected Grib2DataReader(GribCollectionImmutable gribCollection, GribCollectionImmutable.VariableIndex vindex) {
+    Grib2DataReader(GribCollectionImmutable gribCollection,
+        GribCollectionImmutable.VariableIndex vindex) {
       super(gribCollection, vindex);
-      this.cust = (Grib2Customizer) gribCollection.cust;
+      this.cust = (Grib2Tables) gribCollection.cust;
     }
 
     @Override
@@ -470,7 +455,7 @@ public abstract class GribDataReader {
         f.format("  Parameter=%s%n", cust.getVariableName(gr));
         f.format("  ReferenceDate=%s%n", gr.getReferenceDate());
         f.format("  ForecastDate=%s%n", cust.getForecastDate(gr));
-        TimeCoord.TinvDate tinv = cust.getForecastTimeInterval(gr);
+        TimeCoordIntvDateValue tinv = cust.getForecastTimeInterval(gr);
         if (tinv != null) f.format("  TimeInterval=%s%n", tinv);
         f.format("  ");
         gr.getPDS().show(f);
@@ -480,9 +465,10 @@ public abstract class GribDataReader {
   }
 
   private static class Grib1DataReader extends GribDataReader {
-    private Grib1Customizer cust;
+    private final Grib1Customizer cust;
 
-    protected Grib1DataReader(GribCollectionImmutable gribCollection, GribCollectionImmutable.VariableIndex vindex) {
+    Grib1DataReader(GribCollectionImmutable gribCollection,
+        GribCollectionImmutable.VariableIndex vindex) {
       super(gribCollection, vindex);
       this.cust = (Grib1Customizer) gribCollection.cust;
     }
@@ -505,7 +491,7 @@ public abstract class GribDataReader {
       Grib1ParamTime ptime = gr.getParamTime(cust);
       f.format("  ForecastTime=%d%n", ptime.getForecastTime());
       if (ptime.isInterval()) {
-        int tinv[] = ptime.getInterval();
+        int[] tinv = ptime.getInterval();
         f.format("  TimeInterval=(%d,%d)%n", tinv[0], tinv[1]);
       }
       f.format("%n");

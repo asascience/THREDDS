@@ -15,8 +15,6 @@ package ucar.nc2.grib.grib1;
 
 public class Grib1GdsPredefined {
 
-  private static org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Grib1GdsPredefined.class);
-
   /**
    * Constructs a Grib1Gds object from a pds and predefined tables.
    *
@@ -62,7 +60,7 @@ public class Grib1GdsPredefined {
   }
 
   private static class NcepLatLon extends Grib1Gds.LatLon {
-    int gridNumber;
+    final int gridNumber;
 
     NcepLatLon(int gridNumber, int nx, int ny, float la1, float lo1, float la2, float lo2, float deltaLon, float deltaLat,
                byte resolution, byte scan) {
@@ -98,7 +96,7 @@ public class Grib1GdsPredefined {
   }
 
   private static class NcepPS extends Grib1Gds.PolarStereographic {
-    int gridNumber;
+    final int gridNumber;
 
     NcepPS(int gridNumber, int nx, int ny, float la1, float lo1, float lov, float dX, float dY,
            byte resolution, byte scan) {

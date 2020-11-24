@@ -5,18 +5,25 @@
 
 package ucar.nc2.grib.collection;
 
+import com.google.common.base.MoreObjects;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import thredds.featurecollection.FeatureCollectionConfig;
 import thredds.inventory.MFile;
-import ucar.coord.*;
 import ucar.nc2.grib.GribIndexCache;
 import ucar.nc2.grib.GribTables;
+import ucar.nc2.grib.coord.Coordinate;
+import ucar.nc2.grib.coord.CoordinateRuntime;
+import ucar.nc2.grib.coord.CoordinateTime2D;
+import ucar.nc2.grib.coord.CoordinateTimeAbstract;
+import ucar.nc2.grib.coord.CoordinateTimeIntv;
 import ucar.nc2.grib.grib1.Grib1Gds;
 import ucar.nc2.grib.grib1.Grib1ParamTime;
 import ucar.nc2.grib.grib1.Grib1SectionProductDefinition;
 import ucar.nc2.grib.grib1.Grib1Variable;
 import ucar.nc2.grib.grib1.tables.Grib1Customizer;
 import ucar.nc2.grib.grib2.*;
-import ucar.nc2.grib.grib2.table.Grib2Customizer;
+import ucar.nc2.grib.grib2.table.Grib2Tables;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateFormatter;
 import ucar.nc2.time.CalendarDateRange;
@@ -33,14 +40,15 @@ import java.nio.file.Paths;
 import java.util.*;
 
 /**
- * A mutable class for writing indices or building GribCollectionImmutable
+ * A mutable class for writing indices or building GribCollectionImmutable.
+ * Better to use a Builder?
  *
  * @author John
  * @since 12/1/13
  */
 public class GribCollectionMutable implements Closeable {
-  static private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(GribCollectionMutable.class);
-  static public final long MISSING_RECORD = -1;
+  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(GribCollectionMutable.class);
+  static final long MISSING_RECORD = -1;
 
   //////////////////////////////////////////////////////////
 
@@ -49,17 +57,17 @@ public class GribCollectionMutable implements Closeable {
     return new GcMFile(directory, nameNoBlanks + GribCdmIndex.NCX_SUFFIX, -1, -1, -1); // LOOK dont know lastMod, size. can it be added later?
   }
 
-  private static CalendarDateFormatter cf = new CalendarDateFormatter("yyyyMMdd-HHmmss", new CalendarTimeZone("UTC"));
+  private static final CalendarDateFormatter cf = new CalendarDateFormatter("yyyyMMdd-HHmmss", new CalendarTimeZone("UTC"));
 
-  static public String makeName(String collectionName, CalendarDate runtime) {
+  static String makeName(String collectionName, CalendarDate runtime) {
     String nameNoBlanks = StringUtil2.replace(collectionName, ' ', "_");
     return nameNoBlanks + "-" + cf.toString(runtime);
   }
 
   ////////////////////////////////////////////////////////////////
-  protected String name; // collection name; index filename must be directory/name.ncx2
-  protected FeatureCollectionConfig config;
-  protected boolean isGrib1;
+  protected final String name; // collection name; index filename must be directory/name.ncx2
+  protected final FeatureCollectionConfig config;
+  protected final boolean isGrib1;
   protected File directory;
   protected String orgDirectory;
 
@@ -74,7 +82,7 @@ public class GribCollectionMutable implements Closeable {
   protected GribTables cust;
   protected int indexVersion;
 
-  public void setCalendarDateRange(long startMsecs, long endMsecs) {
+  void setCalendarDateRange(long startMsecs, long endMsecs) {
     this.dateRange = CalendarDateRange.of( CalendarDate.of(startMsecs), CalendarDate.of(endMsecs));
   }
 
@@ -86,7 +94,7 @@ public class GribCollectionMutable implements Closeable {
   protected long lastModified;
   protected long fileSize;
 
-  public static int countGC;
+  private static int countGC;
 
   protected GribCollectionMutable(String name, File directory, FeatureCollectionConfig config, boolean isGrib1) {
     countGC++;
@@ -101,7 +109,7 @@ public class GribCollectionMutable implements Closeable {
   }
 
   // for making partition collection
-  protected void copyInfo(GribCollectionMutable from) {
+  void copyInfo(GribCollectionMutable from) {
     this.center = from.center;
     this.subcenter = from.subcenter;
     this.master = from.master;
@@ -146,7 +154,8 @@ public class GribCollectionMutable implements Closeable {
     return result;
   }
 
-  public File getIndexParentFile() {
+  @Nullable
+  File getIndexParentFile() {
     if (indexRaf == null) return null;
     Path index = Paths.get(indexRaf.getLocation());
     Path parent = index.getParent();
@@ -161,56 +170,18 @@ public class GribCollectionMutable implements Closeable {
     return datasets;
   }
 
-  public Dataset makeDataset(GribCollectionImmutable.Type type) {
+  Dataset makeDataset(GribCollectionImmutable.Type type) {
     Dataset result = new Dataset(type);
     datasets.add(result);
     return result;
   }
 
-  public GribCollectionMutable.Dataset getDatasetCanonical() {
+  GribCollectionMutable.Dataset getDatasetCanonical() {
     for (GribCollectionMutable.Dataset ds : datasets) {
       if (ds.gctype != GribCollectionImmutable.Type.Best) return ds;
     }
     throw new IllegalStateException("GC.getDatasetCanonical failed on=" + name);
   }
-
-  /*
-  public GribHorizCoordSystem getHorizCS(int index) {
-    return horizCS.get(index);
-  }
-
-  protected void makeHorizCS() {
-    Map<Object, GribHorizCoordSystem> gdsMap = new HashMap<>();   // WTF ?? unique ???
-    for (Dataset ds : datasets) {
-      for (GroupGC hcs : ds.groups)
-        gdsMap.put(hcs.getGdsHash(), hcs.horizCoordSys);
-    }
-
-    horizCS = new ArrayList<>();
-    for (GribHorizCoordSystem hcs : gdsMap.values())
-      horizCS.add(hcs);
-  }
-
-  public int findHorizCS(GribHorizCoordSystem hcs) {
-    return horizCS.indexOf(hcs);
-  }
-
-  public void addHorizCoordSystem(GdsHorizCoordSys hcs, byte[] rawGds, Object gdsHashObject, int predefinedGridDefinition) {
-    if (hcs == null) {
-      logger.error("GribCollectionMutable: No hcs available");
-      return;
-    }
-
-    String hcsName = makeHorizCoordSysName(hcs);
-
-    // check for user defined group names
-    String desc = null;
-    if (config.gribConfig.gdsNamer != null)
-      desc = config.gribConfig.gdsNamer.get(gdsHashObject.hashCode());
-    if (desc == null) desc = hcs.makeDescription(); // default desc
-
-    horizCS.add(new GribHorizCoordSystem(hcs, rawGds, gdsHashObject, hcsName, desc, predefinedGridDefinition));
-  } */
 
   public void setFileMap(Map<Integer, MFile> fileMap) {
     this.fileMap = fileMap;
@@ -239,7 +210,7 @@ public class GribCollectionMutable implements Closeable {
   }
 
   // set from GribCollectionBuilderFromIndex.readFromIndex()
-  public File setOrgDirectory(String orgDirectory) {
+  File setOrgDirectory(String orgDirectory) {
     this.orgDirectory = orgDirectory;
     directory = new File(orgDirectory);
     if (!directory.exists()) {
@@ -278,7 +249,7 @@ public class GribCollectionMutable implements Closeable {
       groups = new ArrayList<>(from.groups.size());
     }
 
-    public GroupGC addGroupCopy(GroupGC from) {
+    GroupGC addGroupCopy(GroupGC from) {
       GroupGC g = new GroupGC(from);
       groups.add(g);
       return g;
@@ -291,7 +262,7 @@ public class GribCollectionMutable implements Closeable {
 
   public class GroupGC implements Comparable<GroupGC> {
     GribHorizCoordSystem horizCoordSys;
-    List<VariableIndex> variList;
+    final List<VariableIndex> variList;
     List<Coordinate> coords;      // shared coordinates
     int[] filenose;               // key for GC.fileMap
     HashMap<GribCollectionMutable.VariableIndex, GribCollectionMutable.VariableIndex> varMap;
@@ -346,7 +317,7 @@ public class GribCollectionMutable implements Closeable {
      }
 
     @Override
-    public int compareTo(GroupGC o) {
+    public int compareTo(@Nonnull GroupGC o) {
       return getDescription().compareTo(o.getDescription());
     }
 
@@ -377,11 +348,9 @@ public class GribCollectionMutable implements Closeable {
           if (old != null) {
             logger.error("GribCollectionMutable has duplicate variable hash {} == {}", vi, old);
           }
-          //System.out.printf("%s%n", vi.hashCode());
         }
       }
-      GribCollectionMutable.VariableIndex result = varMap.get(want);
-      return result;
+      return varMap.get(want);
     }
 
     private CalendarDateRange dateRange = null;
@@ -418,20 +387,25 @@ public class GribCollectionMutable implements Closeable {
 
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder("GroupGC{");
-      sb.append(GribCollectionMutable.this.getName());
-      sb.append(" isTwoD=").append(isTwoD);
-      sb.append('}');
-      return sb.toString();
+      return MoreObjects.toStringHelper(this)
+          .add("horizCoordSys", horizCoordSys)
+          .add("variList", variList)
+          .add("coords", coords)
+          .add("filenose", filenose)
+          .add("varMap", varMap)
+          .add("isTwoD", isTwoD)
+          .add("dateRange", dateRange)
+          .toString();
     }
   }
 
-  public GribCollectionMutable.VariableIndex makeVariableIndex(GroupGC g, GribTables customizer, int discipline, int center,
-                                    int subcenter, byte[] rawPds, List<Integer> index, long recordsPos, int recordsLen) {
+  GribCollectionMutable.VariableIndex makeVariableIndex(GroupGC g, GribTables customizer,
+      int discipline, int center,
+      int subcenter, byte[] rawPds, List<Integer> index, long recordsPos, int recordsLen) {
     return new VariableIndex(g, customizer, discipline, center, subcenter, rawPds, index, recordsPos, recordsLen);
   }
 
-  public VariableIndex makeVariableIndex(GroupGC group, GribCollectionMutable.VariableIndex from) {
+  VariableIndex makeVariableIndex(GroupGC group, GribCollectionMutable.VariableIndex from) {
     VariableIndex vip = new VariableIndex(group, from);
     group.addVariable(vip);
     return vip;
@@ -502,7 +476,7 @@ public class GribCollectionMutable implements Closeable {
         gribVariable = new Grib1Variable(cust, pds, (Grib1Gds) g.getGdsHash(), config.gribConfig.useTableVersion, config.gribConfig.intvMerge, config.gribConfig.useCenter);
 
       } else {
-        Grib2Customizer cust2 = (Grib2Customizer) customizer;
+        Grib2Tables cust2 = (Grib2Tables) customizer;
 
         Grib2SectionProductDefinition pdss = new Grib2SectionProductDefinition(rawPds);
         Grib2Pds pds = pdss.getPDS();
@@ -579,6 +553,7 @@ public class GribCollectionMutable implements Closeable {
       return result;
     }
 
+    @Nullable
     public Coordinate getCoordinate(Coordinate.Type want) {
       for (int idx : coordIndex)
         if (group.coords.get(idx).getType() == want)
@@ -593,6 +568,7 @@ public class GribCollectionMutable implements Closeable {
       return -1;
     }
 
+    @Nullable
     public String getTimeIntvName() {
       if (intvName != null) return intvName;
       CoordinateTimeIntv timeiCoord = (CoordinateTimeIntv) getCoordinate(Coordinate.Type.timeIntv);
@@ -617,69 +593,68 @@ public class GribCollectionMutable implements Closeable {
     }
 
     @Override
-    public String toString() {
-      final StringBuilder sb = new StringBuilder();
-      sb.append("VariableIndex");
-      sb.append("{tableVersion=").append(tableVersion);
-      sb.append(", discipline=").append(discipline);
-      sb.append(", category=").append(category);
-      sb.append(", parameter=").append(parameter);
-      sb.append(", levelType=").append(levelType);
-      sb.append(", intvType=").append(intvType);
-      sb.append(", ensDerivedType=").append(ensDerivedType);
-      sb.append(", probType=").append(probType);
-      sb.append(", intvName='").append(intvName).append('\'');
-      sb.append(", probabilityName='").append(probabilityName).append('\'');
-      sb.append(", isLayer=").append(isLayer);
-      sb.append(", genProcessType=").append(genProcessType);
-      sb.append(", cdmHash=").append(gribVariable.hashCode());
-      //sb.append(", partTimeCoordIdx=").append(partTimeCoordIdx);
-      sb.append('}');
-      return sb.toString();
+     public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("tableVersion", tableVersion)
+          .add("discipline", discipline)
+          .add("category", category)
+          .add("parameter", parameter)
+          .add("levelType", levelType)
+          .add("intvType", intvType)
+          .add("ensDerivedType", ensDerivedType)
+          .add("probType", probType)
+          .add("intvName", intvName)
+          .add("probabilityName", probabilityName)
+          .add("isLayer", isLayer)
+          .add("genProcessType", genProcessType)
+          .add("cdmHash", gribVariable.hashCode())
+          .toString();
     }
 
     public String toStringComplete() {
-      final StringBuilder sb = new StringBuilder();
-      sb.append("VariableIndex");
-      sb.append("{tableVersion=").append(tableVersion);
-      sb.append(", discipline=").append(discipline);
-      sb.append(", category=").append(category);
-      sb.append(", parameter=").append(parameter);
-      sb.append(", levelType=").append(levelType);
-      sb.append(", intvType=").append(intvType);
-      sb.append(", ensDerivedType=").append(ensDerivedType);
-      sb.append(", probType=").append(probType);
-      sb.append(", intvName='").append(intvName).append('\'');
-      sb.append(", probabilityName='").append(probabilityName).append('\'');
-      sb.append(", isLayer=").append(isLayer);
-      sb.append(", cdmHash=").append(gribVariable.hashCode());
-      sb.append(", recordsPos=").append(recordsPos);
-      sb.append(", recordsLen=").append(recordsLen);
-      sb.append(", group=").append(group.getId());
-      //sb.append(", partTimeCoordIdx=").append(partTimeCoordIdx);
-      sb.append("}\n");
-      /* if (time2runtime == null) sb.append("time2runtime is null");
-      else {
-        sb.append("time2runtime=");
-        for (int idx = 0; idx < time2runtime.getN(); idx++)
-          sb.append(time2runtime.get(idx)).append(",");
-      } */
-      return sb.toString();
+      return MoreObjects.toStringHelper(this)
+          .add("group", group)
+          .add("tableVersion", tableVersion)
+          .add("discipline", discipline)
+          .add("center", center)
+          .add("subcenter", subcenter)
+          .add("recordsPos", recordsPos)
+          .add("recordsLen", recordsLen)
+          .add("gribVariable", gribVariable)
+          .add("coordIndex", coordIndex)
+          .add("category", category)
+          .add("parameter", parameter)
+          .add("levelType", levelType)
+          .add("intvType", intvType)
+          .add("ensDerivedType", ensDerivedType)
+          .add("probType", probType)
+          .add("intvName", intvName)
+          .add("probabilityName", probabilityName)
+          .add("isLayer", isLayer)
+          .add("isEnsemble", isEnsemble)
+          .add("genProcessType", genProcessType)
+          .add("spatialStatType", spatialStatType)
+          .toString();
     }
 
     public String toStringShort() {
-      Formatter sb = new Formatter();
-      sb.format("Variable {%d-%d-%d", discipline, category, parameter);
-      sb.format(", levelType=%d", levelType);
-      sb.format(", intvType=%d", intvType);
-      if (intvName != null && intvName.length() > 0) sb.format(" intv=%s", intvName);
-      if (probabilityName != null && probabilityName.length() > 0) sb.format(" prob=%s", probabilityName);
-      sb.format(" cdmHash=%d}", gribVariable.hashCode());
-      return sb.toString();
+      try (Formatter sb = new Formatter()) {
+        sb.format("Variable {%d-%d-%d", discipline, category, parameter);
+        sb.format(", levelType=%d", levelType);
+        sb.format(", intvType=%d", intvType);
+        if (intvName != null && intvName.length() > 0) {
+          sb.format(" intv=%s", intvName);
+        }
+        if (probabilityName != null && probabilityName.length() > 0) {
+          sb.format(" prob=%s", probabilityName);
+        }
+        sb.format(" cdmHash=%d}", gribVariable.hashCode());
+        return sb.toString();
+      }
     }
 
     @Override
-    public int compareTo(VariableIndex o) {
+    public int compareTo(@Nonnull VariableIndex o) {
       int r = discipline - o.discipline;  // LOOK add center, subcenter, version?
       if (r != 0) return r;
       r = category - o.category;
@@ -695,7 +670,7 @@ public class GribCollectionMutable implements Closeable {
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
-      if (o == null || !(o instanceof VariableIndex)) return false;
+      if (!(o instanceof VariableIndex)) return false;
 
       VariableIndex that = (VariableIndex) o;
       return gribVariable.equals(that.gribVariable);
@@ -724,23 +699,18 @@ public class GribCollectionMutable implements Closeable {
 
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder("GribCollection.Record{");
-      sb.append("fileno=").append(fileno);
-      sb.append(", pos=").append(pos);
-      sb.append(", bmsPos=").append(bmsPos);
-      sb.append(", scanMode=").append(scanMode);
-      sb.append('}');
-      return sb.toString();
+      return MoreObjects.toStringHelper(this)
+          .add("fileno", fileno)
+          .add("pos", pos)
+          .add("bmsPos", bmsPos)
+          .add("scanMode", scanMode)
+          .toString();
     }
   }
 
   public void showIndex(Formatter f) {
     f.format("Class (%s)%n", getClass().getName());
     f.format("%s%n%n", toString());
-
-    //f.format(" master runtime coordinate%n");
-    //masterRuntime.showCoords(f);
-    //f.format("%n");
 
     for (Dataset ds : datasets) {
       f.format("Dataset %s%n", ds.gctype);
@@ -764,21 +734,32 @@ public class GribCollectionMutable implements Closeable {
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder("GribCollectionMutable{");
-    sb.append("\nname='").append(name).append('\'');
-    sb.append("\n directory=").append(directory);
-    sb.append("\n config=").append(config);
-    sb.append("\n isGrib1=").append(isGrib1);
-    sb.append("\n version=").append(version);
-    sb.append("\n center=").append(center);
-    sb.append("\n subcenter=").append(subcenter);
-    sb.append("\n master=").append(master);
-    sb.append("\n local=").append(local);
-    sb.append("\n genProcessType=").append(genProcessType);
-    sb.append("\n genProcessId=").append(genProcessId);
-    sb.append("\n backProcessId=").append(backProcessId);
-    sb.append("\n}");
-    return sb.toString();
+    return MoreObjects.toStringHelper(this)
+        .add("name", name)
+        .add("config", config)
+        .add("isGrib1", isGrib1)
+        .add("directory", directory)
+        .add("orgDirectory", orgDirectory)
+        .add("version", version)
+        .add("center", center)
+        .add("subcenter", subcenter)
+        .add("master", master)
+        .add("local", local)
+        .add("genProcessType", genProcessType)
+        .add("genProcessId", genProcessId)
+        .add("backProcessId", backProcessId)
+        .add("params", params)
+        .add("fileMap", fileMap)
+        .add("datasets", datasets)
+        .add("masterRuntime", masterRuntime)
+        .add("cust", cust)
+        .add("indexVersion", indexVersion)
+        .add("dateRange", dateRange)
+        .add("indexRaf", indexRaf)
+        .add("indexFilename", indexFilename)
+        .add("lastModified", lastModified)
+        .add("fileSize", fileSize)
+        .toString();
   }
 
   public String showLocation() {

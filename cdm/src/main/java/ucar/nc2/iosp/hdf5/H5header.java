@@ -942,7 +942,7 @@ public class H5header extends NCheader
     // check for empty attribute case
     if (matt.mds.type == 2) {
       if (dtype == DataType.CHAR)
-        return new Attribute(matt.name, ""); // empty char considered to be a 0 length string
+        return new Attribute(matt.name, DataType.STRING); // empty char considered to be a null string attr
       else
         return new Attribute(matt.name, dtype);
     }
@@ -1442,7 +1442,7 @@ public class H5header extends NCheader
     }
 
     if (transformReference && (facade.dobj.mdt.type == 7) && (facade.dobj.mdt.referenceType == 1)) { // region reference
-      log.warn("transform region Reference: facade=" + facade.name + " variable name=" + v.getFullName());
+      if (warnings) log.warn("transform region Reference: facade=" + facade.name + " variable name=" + v.getFullName());
       int nelems = (int) v.getSize();
       int heapIdSize = 12;
       /* doesnt work yet

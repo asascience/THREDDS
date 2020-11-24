@@ -13,23 +13,15 @@ import ucar.nc2.grib.grib2.Grib2Parameter;
  */
 
 public class NdfdLocalTables extends LocalTables {
-  private static NdfdLocalTables single;
 
-  public static Grib2Customizer getCust(Grib2Table table) {
-    if (single == null) single = new NdfdLocalTables(table);
-    return single;
-  }
-
-  private NdfdLocalTables(Grib2Table grib2Table) {
-    super(grib2Table);
-    if (grib2Table.getPath() == null)
-      grib2Table.setPath(this.getClass().getName());
+  NdfdLocalTables(Grib2TableConfig config) {
+    super(config);
     init();
   }
 
   @Override
-  public String getTablePath(int discipline, int category, int number) {
-    if ((category <= 191) && (number <= 191)) return super.getTablePath(discipline, category, number);
+  public String getParamTablePathUsedFor(int discipline, int category, int number) {
+    if ((category <= 191) && (number <= 191)) return super.getParamTablePathUsedFor(discipline, category, number);
     return this.getClass().getName();
   }
 
@@ -77,7 +69,8 @@ public class NdfdLocalTables extends LocalTables {
   }
 
   private void add(int discipline, int category, int number, String abbrev, String name, String unit) {
-    local.put(makeParamId(discipline, category, number), new Grib2Parameter(discipline, category, number, name, unit, abbrev, null));
+    localParams
+        .put(makeParamId(discipline, category, number), new Grib2Parameter(discipline, category, number, name, unit, abbrev, null));
   }
 
 }
