@@ -357,8 +357,11 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
     if (-1 == jvmPercent)
       jvmPercent = ThreddsConfig.getInt("FeatureCollection.jvmPercent", 2);
 
+    boolean readOnly = ThreddsConfig.getBoolean("FeatureCollectionCache.readOnly", false);
+
     try {
       thredds.inventory.bdb.MetadataManager.setCacheDirectory(fcCache, maxSizeBytes, jvmPercent);
+      thredds.inventory.bdb.MetadataManager.setReadOnly(readOnly);
       thredds.inventory.CollectionManagerAbstract.setMetadataStore(thredds.inventory.bdb.MetadataManager.getFactory());  // LOOK
       startupLog.info("TdsInit: CollectionManagerAbstract.setMetadataStore= " + fcCache);
     } catch (Exception e) {

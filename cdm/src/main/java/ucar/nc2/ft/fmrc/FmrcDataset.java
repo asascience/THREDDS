@@ -255,9 +255,12 @@ class FmrcDataset {
         NetcdfDataset ncfile = open(file.getLocation(), openFilesProto);
         if (ncfile != null)
           transferGroup(ncfile.getRootGroup(), result.getRootGroup(), result);
-        else
+        else {
           logger.warn("Failed to open "+file.getLocation());
+          continue;
+        }
         if (logger.isDebugEnabled()) logger.debug("FmrcDataset: proto dataset= " + file.getLocation());
+        break;
       }
 
       // some additional global attributes
@@ -561,7 +564,7 @@ class FmrcDataset {
       for (FmrcInvLite.Gridset.Grid ugrid : gridset.grids) {
         VariableDS aggVar = (VariableDS) result.findVariable(ugrid.name);
         if (aggVar == null) { // a ugrid is not in the proto
-          logger.error("buildDataset2D: cant find ugrid variable "+ugrid.name+" in collection "+lite.collectionName+debugMissingVar(proto, result));
+          logger.debug("buildDataset2D: cant find ugrid variable "+ugrid.name+" in collection "+lite.collectionName+debugMissingVar(proto, result));
           continue; // skip
         }
 
@@ -847,7 +850,7 @@ class FmrcDataset {
 
         VariableDS aggVar = (VariableDS) result.findVariable(ugrid.name);
         if (aggVar == null) { // a ugrid is not in the proto
-          logger.error("buildDataset1D "+lite.collectionName+": cant find ugrid variable "+ugrid.name+" in collection "+lite.collectionName+debugMissingVar(proto, result));
+          logger.debug("buildDataset1D "+lite.collectionName+": cant find ugrid variable "+ugrid.name+" in collection "+lite.collectionName+debugMissingVar(proto, result));
           continue; // skip
         }
 

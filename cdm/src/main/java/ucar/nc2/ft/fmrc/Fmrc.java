@@ -282,7 +282,8 @@ public class Fmrc implements Closeable {
         try {
           inv = GridDatasetInv.open(manager, f, config.innerNcml); // inventory is discovered for each GDS
         } catch (IOException ioe) {
-          logger.warn("Error opening " + f.getPath() + "(skipped)", ioe);
+          //logger.warn("Error opening " + f.getPath() + "(skipped)", ioe);
+          //logger.warn("Error opening " + f.getPath() + "(skipped)");
           continue; // skip
         }
 

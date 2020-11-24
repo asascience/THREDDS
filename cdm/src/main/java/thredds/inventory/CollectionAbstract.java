@@ -51,6 +51,7 @@ public abstract class CollectionAbstract implements MCollection {
   static public final String FILE = "file:";
   static public final String LIST = "list:";
   static public final String GLOB = "glob:";
+  static public final String S3FS = "s3fs:";
 
   // called from Aggregation, Fmrc, FeatureDatasetFactoryManager
   static public MCollection open(String collectionName, String collectionSpec, String olderThan, Formatter errlog) throws IOException {
@@ -70,6 +71,9 @@ public abstract class CollectionAbstract implements MCollection {
 
     else if (collectionSpec.startsWith(GLOB))
       return new CollectionGlob(collectionName, collectionSpec.substring(GLOB.length()), null);
+
+    else if (collectionSpec.startsWith(S3FS))
+      return MFileS3CollectionManager.open(collectionName, collectionSpec, olderThan, errlog);
 
     else
       return MFileCollectionManager.open(collectionName, collectionSpec, olderThan, errlog);
@@ -142,6 +146,13 @@ public abstract class CollectionAbstract implements MCollection {
     for (MFile f : getFilesSorted())
       result.add(f.getPath());
     return result;
+  }
+
+  public Map<String, Long> getFilenamesAndSizes() throws IOException {
+      Map<String, Long> result = new HashMap<String, Long>();
+      for (MFile f : getFilesSorted())
+          result.put(f.getPath(), f.getLength());
+      return result;
   }
 
   @Override

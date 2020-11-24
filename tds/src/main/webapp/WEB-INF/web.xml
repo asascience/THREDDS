@@ -124,12 +124,14 @@
       <url-pattern>/admin/collection/trigger</url-pattern>
       <url-pattern>/admin/trigger</url-pattern>
     </web-resource-collection>
+    <!-- 20191106 no protect on trigger
     <auth-constraint>
       <role-name>tdsTrigger</role-name>
     </auth-constraint>
     <user-data-constraint>
       <transport-guarantee>CONFIDENTIAL</transport-guarantee>
     </user-data-constraint>
+    -->
   </security-constraint>
 
   <!-- This allows "remote monitoring":
