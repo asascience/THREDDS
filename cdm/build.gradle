@@ -34,6 +34,10 @@ dependencies {
 
     testCompile libraries["commons-io"]
     testCompile libraries["mockito"]
+
+    compile libraries["aws-java-sdk-s3"]
+
+
 }
 
 jar.manifest.attributes 'Main-Class': 'ucar.nc2.NCdumpW'

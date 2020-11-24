@@ -79,12 +79,7 @@ public class CatalogExt {
     int avail = in.available();
     int len = in.readInt();
     byte[] b = new byte[len];
-    int n = in.read(b);
-    //System.out.printf(" read size = %d%n", b.length);
-
-    //try {
-    if (n != len)
-      throw new RuntimeException("barf with read size=" + len + " in.available=" + avail);
+    in.readFully(b);
 
     ConfigCatalogExtProto.Catalog catp = ConfigCatalogExtProto.Catalog.parseFrom(b);
     this.catId = catp.getCatId();
