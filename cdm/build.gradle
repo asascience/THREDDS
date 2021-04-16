@@ -35,7 +35,7 @@ dependencies {
     testCompile libraries["commons-io"]
     testCompile libraries["mockito"]
 
-    compile libraries["aws-java-sdk-s3"]
+    compile libraries["awssdk-s3"]
 
 
 }

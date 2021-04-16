@@ -37,7 +37,7 @@ dependencies {
     ncIdv project(':legacy')
 
     tdmFat project(':tdm')
-    
+
     netcdfAll project(":cdm")
     netcdfAll project(":clcommon")
     netcdfAll project(":bufr")
@@ -48,11 +48,11 @@ dependencies {
     netcdfAll project(':visadCdm')  // For Gempak IOSPs.
 
     toolsUI project(':uicdm')
-    
+
     dap4lib project(':dap4:d4core')
     dap4lib project(':dap4:d4lib')
     dap4lib libraries["logback-classic"]
-    
+
     d4ts project(':dap4:d4ts')
 }
 
@@ -64,24 +64,26 @@ def fatJarTasks = []
 
 fatJarTasks << tasks.create(name: 'buildNcIdv', type: ShadowJar) {
     baseName = 'ncIdv'
+    zip64 true
+
     configurations = [project.configurations.ncIdv]
-    
+
     dependencies {
         exclude(dependency('c3p0:c3p0'))  // Transitive dependency dragged in by libraries["quartz"]
     }
-    
+
     // Filter out crap from libraries["visad"]
     exclude 'edu/wisc/**'
     exclude 'nom/**'
     exclude 'visad/**'
-    
+
     manifest.attributes 'Implementation-Title': 'ncIdv Module'
 }
 
 fatJarTasks << tasks.create(name: 'buildTdmFat', type: ShadowJar) {
     baseName = 'tdmFat'
     configurations = [project.configurations.tdmFat]
-    
+
     doFirst {
         manifest.attributes project(':tdm').tasks.jar.manifest.attributes
     }
@@ -90,7 +92,7 @@ fatJarTasks << tasks.create(name: 'buildTdmFat', type: ShadowJar) {
 fatJarTasks << tasks.create(name: 'buildNetcdfAll', type: ShadowJar) {
     baseName = 'netcdfAll'
     configurations = [project.configurations.netcdfAll]
-    
+
     doFirst {
         manifest.attributes project(':cdm').tasks.jar.manifest.attributes
     }
@@ -99,7 +101,7 @@ fatJarTasks << tasks.create(name: 'buildNetcdfAll', type: ShadowJar) {
 fatJarTasks << tasks.create(name: 'buildToolsUI', type: ShadowJar) {
     baseName = 'toolsUI'
     configurations = [project.configurations.toolsUI]
-    
+
     doFirst {
         manifest.attributes project(':uicdm').tasks.jar.manifest.attributes
     }
@@ -108,7 +110,7 @@ fatJarTasks << tasks.create(name: 'buildToolsUI', type: ShadowJar) {
 fatJarTasks << tasks.create(name: 'buildDap4Lib', type: ShadowJar) {
     baseName = 'dap4lib'
     configurations = [project.configurations.dap4lib]
-    
+
     doFirst {
         manifest.attributes project(':dap4:d4lib').tasks.jar.manifest.attributes
     }
@@ -117,7 +119,7 @@ fatJarTasks << tasks.create(name: 'buildDap4Lib', type: ShadowJar) {
 fatJarTasks << tasks.create(name: 'buildD4TS', type: ShadowJar) {
     baseName = 'd4ts'
     configurations = [project.configurations.d4ts]
-    
+
     doFirst {
         manifest.attributes project(':dap4:d4ts').tasks.jar.manifest.attributes
     }
@@ -127,7 +129,7 @@ fatJarTasks << tasks.create(name: 'buildD4TS', type: ShadowJar) {
 configure(fatJarTasks) {
     dependsOn configurations*.buildDependencies
     group = "shadow"
-    
+
     // Filter out crap from various other packages.
     exclude 'AUTHORS'
     exclude 'DATE'
@@ -144,7 +146,7 @@ configure(fatJarTasks) {
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.txt'
     exclude 'META-INF/*.xml'
-    
+
     // Transformations
     append('META-INF/spring.handlers')
     append('META-INF/spring.schemas')
