@@ -15,15 +15,19 @@ dependencies {
     compile project(":cdm")
     compile project(":grib")
     compile project(":opendap")
-    
+
     compile libraries["guava"]
     compile libraries["jdom2"]
     compile libraries["jsr305"]
-    compile libraries["aws-java-sdk-s3"]  // For CrawlableDatasetAmazonS3.
-    compile libraries["jackson-core"]  // Replace what was in aws-java-sdk-s3
-    compile libraries["jackson-annotations"]  // Replace what was in aws-java-sdk-s3
-    compile libraries["jackson-databind"]  // Replace what was in aws-java-sdk-s3
-    
+
+    // Yes, we actually need all 4 of these... Yeah, I know....
+    // For CrawlableDatasetAmazonS3.
+    compile libraries["awssdk-s3"]
+    compile libraries["awssdk-sdk-core"]
+    compile libraries["aws-sdk-s3"]
+    compile libraries["aws-sdk-core"]
+
+
     compile libraries["slf4j-api"]
     testRuntime libraries["logback-classic"]
 
