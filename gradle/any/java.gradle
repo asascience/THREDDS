@@ -7,19 +7,18 @@ apply from: "$rootDir/gradle/any/javadoc.gradle"
 sourceCompatibility = JavaVersion.VERSION_1_8
 targetCompatibility = JavaVersion.VERSION_1_8
 
-
 // These will only run when we execute the "publish" task, NOT "assemble".
 // That'll save us from a lot of unnecessary build time in the common case.
 task sourcesJar(type: Jar, dependsOn: classes, group: 'Documentation') {
     description = "Creates a JAR containing the main source code."
-    
+
     classifier = 'sources'
     from sourceSets.main.allSource
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc, group: 'Documentation') {
     description = "Creates a JAR containing the Javadoc that we've generated from the main source code."
-    
+
     classifier = 'javadoc'
     from javadoc.destinationDir
 }
@@ -39,7 +38,7 @@ componentArtifacts << new DefaultPublishArtifact(tasks.javadocJar.archiveName, '
 // Will apply to "compileJava", "compileTestJava", "compileSourceSetJava", etc.
 tasks.withType(JavaCompile).all {
     options.encoding = 'UTF-8'
-    
+
     // Disable warnings about cross-compilation:
     // http://docs.oracle.com/javase/8/docs/technotes/tools/windows/javac.html#BHCIJIEG
     // This is usually fine, but see: http://www.draconianoverlord.com/2014/04/01/jdk-compatibility.html

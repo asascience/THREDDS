@@ -38,7 +38,7 @@ public class ControllerS3 implements MController {
             path = path.replaceFirst("s3fs:", "/data");
         }
         String[] _arr = path.replace("/data/", "").split("/", 2);
-        String bucket = _arr[0]; 
+        String bucket = _arr[0];
         String prefix = _arr[1];
         if (!prefix.endsWith("/")) {
             prefix = prefix + "/";
@@ -56,7 +56,7 @@ public class ControllerS3 implements MController {
             path = path.replaceFirst("s3fs:", "/data");
         }
         String[] _arr = path.replace("/data/", "").split("/", 2);
-        String bucket = _arr[0]; 
+        String bucket = _arr[0];
         String prefix = _arr[1];
         if (!prefix.endsWith("/")) {
             prefix = prefix + "/";
@@ -96,7 +96,7 @@ public class ControllerS3 implements MController {
                 throw new IllegalStateException("S3 ListObjectsV2 returned null on " + bucket + "/" + prefix);
             }
         }
-    
+
         public boolean hasNext() {
             return contents.hasNext();
         }
